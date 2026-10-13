@@ -5,6 +5,7 @@ AutoGen 软件开发团队协作案例
 import os
 import asyncio
 from typing import List, Dict, Any
+from autogen_core.models import ModelInfo, ModelFamily
 from dotenv import load_dotenv
 
 # 加载环境变量
@@ -22,7 +23,18 @@ def create_openai_model_client():
     return OpenAIChatCompletionClient(
         model=os.getenv("LLM_MODEL_ID", "gpt-4o"),
         api_key=os.getenv("LLM_API_KEY"),
-        base_url=os.getenv("LLM_BASE_URL", "https://api.openai.com/v1")
+        base_url=os.getenv("LLM_BASE_URL", "https://api.openai.com/v1"),
+        timeout=int(os.getenv("LLM_TIMEOUT", 60)),
+        # 使用非 OpenAI 模型（如 DeepSeek、通义千问等自定义模型名）时必须显式传入
+        # model_info，否则会抛出：
+        # ValueError: model_info is required when model name is not a valid OpenAI model
+        model_info=ModelInfo(
+            family=ModelFamily.ANY,
+            vision=False,
+            function_calling=True,
+            json_output=True,
+            structured_output=False,
+        ),
     )
 
 def create_product_manager(model_client):

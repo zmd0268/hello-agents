@@ -70,8 +70,6 @@ jupyter lab
 3. 查看生成的图表`outputs/echarts.html`
 4. 查看生成的数据分析报告`outputs/report.md`
 
-
-
 ## 📂 项目结构
 
 ```
@@ -105,3 +103,4 @@ jjyaoao-CodeReviewAgent/
 
 感谢Datawhale社区和Hello-Agents项目！
 
+```

@@ -23,6 +23,7 @@ Action的格式必须是以下之一：
 请开始吧！
 """
 
+
 import requests
 
 def get_weather(city: str) -> str:
@@ -125,12 +126,19 @@ class OpenAICompatibleClient:
                 {'role': 'system', 'content': system_prompt},
                 {'role': 'user', 'content': prompt}
             ]
-            response = self.client.chat.completions.create(
+            # 注意：ClinePass 网关在“非流式”模式下会把结果包一层
+            # {"success": true, "data": {...}}，OpenAI SDK 无法解析（choices 会是 None）。
+            # 因此这里统一使用流式接口，再把所有增量内容拼接成完整回复。
+            stream = self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
-                stream=False
+                stream=True
             )
-            answer = response.choices[0].message.content
+            answer_parts = []
+            for chunk in stream:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    answer_parts.append(chunk.choices[0].delta.content)
+            answer = "".join(answer_parts)
             print("大语言模型响应成功。")
             return answer
         except Exception as e:
@@ -140,11 +148,40 @@ class OpenAICompatibleClient:
 import re
 
 # --- 1. 配置LLM客户端 ---
-# 请根据您使用的服务，将这里替换成对应的凭证和地址
-API_KEY = "YOUR_API_KEY"
-BASE_URL = "YOUR_BASE_URL"
-MODEL_ID = "YOUR_MODEL_ID"
-os.environ['TAVILY_API_KEY'] = "YOUR_TAVILY_API_KEY"
+# 当前使用：ClinePass（Cline 订阅服务，OpenAI 兼容接口）
+#   Base URL 固定为 https://api.cline.bot/api/v1（SDK 会自动拼接 /chat/completions）
+#   Model ID 使用完整的 ClinePass 模型 slug，例如 cline-pass/deepseek-v4.1-flash
+#   密钥与端点统一从 .env 读取（python-dotenv 会从本文件所在目录向上查找最近的 .env；
+#   .env 已被 .gitignore 忽略，不会提交到 git）。
+#   首次使用请在本目录复制模板并填入自己的密钥：
+#     cp code/chapter1/.env.example code/chapter1/.env
+#
+#   .env 支持的变量：
+#     CLINE_API_KEY   （必填）https://app.cline.bot -> Settings -> API Keys
+#     TAVILY_API_KEY  （必填）https://tavily.com
+#     CLINE_BASE_URL  （可选）默认 https://api.cline.bot/api/v1
+#     CLINE_MODEL_ID  （可选）默认 cline-pass/deepseek-v4.1-flash
+#
+# 其它服务配置示例（备查）：
+#   1) inferera  : BASE_URL = "https://api.inferera.com/v1"                    MODEL_ID = "coding-minimax-m3-free"
+#   2) MiniMax CN: BASE_URL = "https://api.minimax.cn/v1/text/chatcompletion_v2"  MODEL_ID = "MiniMax-M3"
+#   3) AIHubmix  : BASE_URL = "https://aihubmix.com/v1"                        MODEL_ID = "coding-glm-4.7-free"
+
+from dotenv import load_dotenv
+
+load_dotenv()  # 从本文件所在目录（或任意上层目录）的 .env 注入 os.environ
+
+API_KEY = os.environ.get("CLINE_API_KEY", "").strip()
+BASE_URL = os.environ.get("CLINE_BASE_URL", "https://api.cline.bot/api/v1").strip()
+MODEL_ID = os.environ.get("CLINE_MODEL_ID", "cline-pass/deepseek-v4.1-flash").strip()
+
+if not API_KEY:
+    raise SystemExit(
+        "错误：未配置 CLINE_API_KEY。\n"
+        "  1) 复制模板：cp code/chapter1/.env.example code/chapter1/.env\n"
+        "  2) 在 code/chapter1/.env 中填入：CLINE_API_KEY=你的APIKey\n"
+        "  或直接执行：export CLINE_API_KEY=\"你的APIKey\""
+    )
 
 llm = OpenAICompatibleClient(
     model=MODEL_ID,
